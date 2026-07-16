@@ -1,6 +1,4 @@
-# ============================================
-# Project 5: Smart Expense Tracker
-# ============================================
+#Tracker EXPENSE TRACKER
 
 from flask import Flask, render_template, request, jsonify
 import mysql.connector
