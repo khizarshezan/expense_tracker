@@ -9,13 +9,27 @@ app = Flask(__name__)
 app.secret_key = 'Khizar@Dev2024'
 
 import os
-DB_CONFIG = {
-    'host': os.environ.get('MYSQLHOST') or os.environ.get('MYSQL_HOST'),
-    'user': os.environ.get('MYSQLUSER') or os.environ.get('MYSQL_USER'),
-    'password': os.environ.get('MYSQLPASSWORD') or os.environ.get('MYSQL_PASSWORD'),
-    'database': os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE'),
-    'port': int(os.environ.get('MYSQLPORT') or os.environ.get('MYSQL_PORT') or 3306)
-}
+import urllib.parse
+
+mysql_url = os.environ.get('MYSQL_URL') or os.environ.get('MYSQL_PUBLIC_URL')
+
+if mysql_url:
+    parsed = urllib.parse.urlparse(mysql_url)
+    DB_CONFIG = {
+        'host': parsed.hostname,
+        'user': parsed.username,
+        'password': parsed.password,
+        'database': parsed.path[1:],
+        'port': parsed.port or 3306
+    }
+else:
+    DB_CONFIG = {
+        'host': 'localhost',
+        'user': 'root',
+        'password': 'root1234',
+        'database': 'khizar_portfolio',
+        'port': 3306
+    }
 
 CATEGORIES = ['Food', 'Transport', 'Shopping', 'Entertainment', 'Health', 'Education', 'Bills', 'Other']
 
