@@ -10,11 +10,11 @@ app.secret_key = 'Khizar@Dev2024'
 
 import os
 DB_CONFIG = {
-    'host': os.environ.get('MYSQL_HOST'),
-    'user': os.environ.get('MYSQL_USER'),
-    'password': os.environ.get('MYSQL_PASSWORD'),
-    'database': os.environ.get('MYSQL_DATABASE'),
-    'port': int(os.environ.get('MYSQL_PORT', 3306))
+    'host': os.environ.get('MYSQLHOST') or os.environ.get('MYSQL_HOST'),
+    'user': os.environ.get('MYSQLUSER') or os.environ.get('MYSQL_USER'),
+    'password': os.environ.get('MYSQLPASSWORD') or os.environ.get('MYSQL_PASSWORD'),
+    'database': os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE'),
+    'port': int(os.environ.get('MYSQLPORT') or os.environ.get('MYSQL_PORT') or 3306)
 }
 
 CATEGORIES = ['Food', 'Transport', 'Shopping', 'Entertainment', 'Health', 'Education', 'Bills', 'Other']
