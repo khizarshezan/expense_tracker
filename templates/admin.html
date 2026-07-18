@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Expense Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #121212; color: #eee; min-height: 100vh; }
+        .stat-card { background: #1e1e1e; border-radius: 16px; padding: 24px; text-align: center; border: 1px solid #333;}
+        .stat-card h3 { font-size: 36px; margin: 0; }
+        .stat-card p { color: #aaa; margin: 8px 0 0; }
+        .text-income { color: #4CAF50; }
+        .text-expense { color: #f44336; }
+        .text-primary-custom { color: #2196F3; }
+        .text-warning-custom { color: #FFC107; }
+        .table-container { background: #1e1e1e; border-radius: 16px; padding: 24px; margin-top: 24px; border: 1px solid #333;}
+        table { color: #eee; }
+        .table th { color: #4CAF50; border-color: #333; }
+        .table td { border-color: #333; vertical-align: middle; }
+        .btn-delete { background: #f44336; border: none; padding: 4px 12px; font-size: 13px; }
+        .btn-delete:hover { background: #d32f2f; }
+        .navbar-admin { background: #1e1e1e; padding: 16px 24px; margin-bottom: 24px; border-bottom: 1px solid #333;}
+    </style>
+</head>
+<body>
+    <div class="navbar-admin d-flex justify-content-between align-items-center">
+        <h4 style="color: #4CAF50; margin: 0;">📊 Expense Tracker Admin</h4>
+        <div>
+            <a href="/" class="btn btn-outline-light btn-sm me-2">← Home</a>
+            <a href="/admin/logout" class="btn btn-outline-danger btn-sm">Logout</a>
+        </div>
+    </div>
+
+    <div class="container-fluid px-4">
+        <div class="row g-3 mb-3">
+            <div class="col-6 col-md-3">
+                <div class="stat-card">
+                    <h3 id="total-users" class="text-primary-custom">-</h3>
+                    <p>Unique Users</p>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card">
+                    <h3 id="total-tx" class="text-warning-custom">-</h3>
+                    <p>Total Transactions</p>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card">
+                    <h3 id="total-income" class="text-income">-</h3>
+                    <p>Total Income Tracked</p>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card">
+                    <h3 id="total-expense" class="text-expense">-</h3>
+                    <p>Total Expenses Tracked</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <h5 style="color: #4CAF50;">📋 All Transactions</h5>
+            <div class="table-responsive mt-3">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Title</th>
+                            <th>Amount</th>
+                            <th>Category</th>
+                            <th>Type</th>
+                            <th>Date</th>
+                            <th>Session ID</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tx-table"></tbody>
+                </table>
+            </div>
+            <p class="text-muted text-center mt-3" id="empty-msg" style="display:none;">No transactions yet.</p>
+        </div>
+    </div>
+
+    <script>
+        async function loadStats() {
+            const res = await fetch('/api/admin/stats');
+            const data = await res.json();
+            document.getElementById('total-users').textContent = data.total_users;
+            document.getElementById('total-tx').textContent = data.total_transactions;
+            document.getElementById('total-income').textContent = '$' + data.total_income.toFixed(2);
+            document.getElementById('total-expense').textContent = '$' + data.total_expense.toFixed(2);
+        }
+
+        async function loadTransactions() {
+            const res = await fetch('/api/admin/transactions');
+            const txs = await res.json();
+            const tbody = document.getElementById('tx-table');
+            const emptyMsg = document.getElementById('empty-msg');
+
+            if (txs.length === 0) {
+                tbody.innerHTML = '';
+                emptyMsg.style.display = 'block';
+                return;
+            }
+
+            emptyMsg.style.display = 'none';
+            tbody.innerHTML = txs.map((t, i) => `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${t.title}</td>
+                    <td class="${t.type === 'income' ? 'text-income' : 'text-expense'}">
+                        ${t.type === 'income' ? '+' : '-'}$${t.amount.toFixed(2)}
+                    </td>
+                    <td>${t.category}</td>
+                    <td><span class="badge ${t.type === 'income' ? 'bg-success' : 'bg-danger'}">${t.type}</span></td>
+                    <td>${t.date}</td>
+                    <td><code style="font-size:11px; color:#aaa;">${(t.session_id || '').substring(0, 8)}...</code></td>
+                    <td><button class="btn btn-delete text-white btn-sm" onclick="deleteTx(${t.id})">🗑️</button></td>
+                </tr>
+            `).join('');
+        }
+
+        async function deleteTx(id) {
+            if (!confirm('Delete this transaction?')) return;
+            await fetch(`/api/admin/transactions/${id}`, { method: 'DELETE' });
+            loadStats();
+            loadTransactions();
+        }
+
+        loadStats();
+        loadTransactions();
+    </script>
+</body>
+</html>
