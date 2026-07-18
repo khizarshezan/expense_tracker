@@ -18,7 +18,5 @@ A full-stack web application for tracking personal income and expenses with real
 - **Chart.js** — Interactive charts
 - **Bootstrap** — Frontend styling
 
-## How to Run
-1. Start MySQL service
-2. Run `python app.py`
-3. Open `http://localhost:5000`
+## link
+- https://exp-tr.up.railway.app
