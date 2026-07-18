@@ -124,62 +124,6 @@ def delete_transaction(id):
     conn.close()
     return jsonify({'success': True})
 
-@app.route('/api/summary', methods=['GET'])
-def get_summary():
-    conn = get_db()
-    if not conn:
-        return jsonify({
-            'total_income': 0,
-            'total_expense': 0,
-            'balance': 0,
-            'by_category': [],
-            'monthly': []
-        })
-    
-    cursor = conn.cursor(dictionary=True)
-    session_id = session.get('user_id')
-    
-    # Total income and expenses
-    cursor.execute("SELECT SUM(amount) as total FROM expenses WHERE type = 'income' AND session_id = %s", (session_id,))
-    total_income = cursor.fetchone()['total'] or 0
-    
-    cursor.execute("SELECT SUM(amount) as total FROM expenses WHERE type = 'expense' AND session_id = %s", (session_id,))
-    total_expense = cursor.fetchone()['total'] or 0
-    
-    # By category breakdown (expenses only)
-    cursor.execute("""
-        SELECT category, SUM(amount) as total 
-        FROM expenses 
-        WHERE type = 'expense' AND session_id = %s
-        GROUP BY category
-        ORDER BY total DESC
-    """, (session_id,))
-    by_category = cursor.fetchall()
-    
-    # Monthly overview
-    cursor.execute("""
-        SELECT DATE_FORMAT(date, '%Y-%m') as month,
-               SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income,
-               SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expense
-        FROM expenses
-        WHERE session_id = %s
-        GROUP BY DATE_FORMAT(date, '%Y-%m')
-        ORDER BY month DESC
-        LIMIT 12
-    """, (session_id,))
-    monthly = cursor.fetchall()
-    monthly.reverse()  # Show oldest first
-    
-    conn.close()
-    
-    return jsonify({
-        'total_income': float(total_income),
-        'total_expense': float(total_expense),
-        'balance': float(total_income - total_expense),
-        'by_category': [{'category': c['category'], 'total': float(c['total'])} for c in by_category],
-        'monthly': [{'month': m['month'], 'income': float(m['income']), 'expense': float(m['expense'])} for m in monthly]
-    })
-
 # ============== ADMIN ROUTES ==============
 
 @app.route('/admin', methods=['GET', 'POST'])
