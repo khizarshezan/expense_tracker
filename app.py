@@ -170,7 +170,7 @@ def admin_stats():
     cursor.execute("SELECT SUM(amount) as total_expense FROM expenses WHERE type = 'expense'")
     result_exp = cursor.fetchone()
     total_expense = result_exp['total_expense'] or 0
-
+    cursor.close()
     conn.close()
 
     return jsonify({
