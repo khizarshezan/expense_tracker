@@ -213,6 +213,38 @@ def admin_delete_transaction(id):
     conn.close()
     return jsonify({'success': True})
 
+@app.route('/api/summary', methods=['GET'])
+def get_summary():
+    conn = get_db()
+    if not conn:
+        return jsonify({})
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT SUM(amount) as total FROM expenses WHERE type='income' AND session_id = %s", (session.get('user_id'),))
+    income = cursor.fetchone()['total'] or 0
+    cursor.execute("SELECT SUM(amount) as total FROM expenses WHERE type='expense' AND session_id = %s", (session.get('user_id'),))
+    expense = cursor.fetchone()['total'] or 0
+    cursor.execute("""
+        SELECT category, SUM(amount) as total 
+        FROM expenses WHERE type='expense' AND session_id = %s
+        GROUP BY category ORDER BY total DESC
+    """, (session.get('user_id'),))
+    by_category = cursor.fetchall()
+    cursor.execute("""
+        SELECT DATE_FORMAT(date, '%Y-%m') as month, 
+               SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
+               SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense
+        FROM expenses WHERE session_id = %s GROUP BY month ORDER BY month
+    """, (session.get('user_id'),))
+    monthly = cursor.fetchall()
+    conn.close()
+    return jsonify({
+        'total_income': income,
+        'total_expense': expense,
+        'balance': income - expense,
+        'by_category': by_category,
+        'monthly': monthly
+    })
+    
 init_db()
 
 if __name__ == '__main__':
