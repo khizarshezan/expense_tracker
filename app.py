@@ -9,7 +9,7 @@ import urllib.parse
 import uuid
 
 app = Flask(__name__)
-app.secret_key = 'Khizar@Dev2024'
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
 
 # ---- Set your admin password here ----
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Khizar@Admin2024')
@@ -244,26 +244,6 @@ def get_summary():
         'by_category': by_category,
         'monthly': monthly
     })
-
-@app.route('/reset-db')
-def reset_db():
-    conn = get_db()
-
-    if conn:
-        cursor = conn.cursor()
-
-        # Drop the existing table
-        cursor.execute("DROP TABLE IF EXISTS expenses")
-
-        conn.commit()
-        conn.close()
-
-        # Recreate the table
-        init_db()
-
-        return "Database reset successful! All expense data has been deleted."
-
-    return "Failed to connect to database."
     
 init_db()
 
