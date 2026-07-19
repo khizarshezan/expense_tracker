@@ -1,9 +1,8 @@
-#Tracker EXPENSE TRACKER
+# Expense Tracker
 
 from flask import Flask, render_template, request, jsonify, session, redirect
 import mysql.connector
 from mysql.connector import Error
-from datetime import datetime
 import os
 import urllib.parse
 import uuid
@@ -11,50 +10,54 @@ import uuid
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
 
-# ---- Set your admin password here ----
-ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Khizar@Admin2024')
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Khizar@Admin2024")
 
-mysql_url = os.environ.get('MYSQL_URL') or os.environ.get('MYSQL_PUBLIC_URL')
+mysql_url = os.environ.get("MYSQL_URL") or os.environ.get("MYSQL_PUBLIC_URL")
 
 if mysql_url:
     parsed = urllib.parse.urlparse(mysql_url)
     DB_CONFIG = {
-        'host': parsed.hostname,
-        'user': parsed.username,
-        'password': parsed.password,
-        'database': parsed.path[1:],
-        'port': parsed.port or 3306
+        "host": parsed.hostname,
+        "user": parsed.username,
+        "password": parsed.password,
+        "database": parsed.path[1:],
+        "port": parsed.port or 3306,
     }
 else:
     DB_CONFIG = {
-        'host': os.environ.get('MYSQLHOST', 'localhost'),
-        'user': os.environ.get('MYSQLUSER', 'root'),
-        'password': os.environ.get('MYSQLPASSWORD', 'root1234'),
-        'database': os.environ.get('MYSQLDATABASE', 'khizar_portfolio'),
-        'port': int(os.environ.get('MYSQLPORT', 3306))
+        "host": os.environ.get("MYSQLHOST", "localhost"),
+        "user": os.environ.get("MYSQLUSER", "root"),
+        "password": os.environ.get("MYSQLPASSWORD", "root1234"),
+        "database": os.environ.get("MYSQLDATABASE", "khizar_portfolio"),
+        "port": int(os.environ.get("MYSQLPORT", 3306)),
     }
 
-CATEGORIES = ['Food', 'Transport', 'Shopping', 'Entertainment', 'Health', 'Education', 'Bills', 'Other']
+CATEGORIES = [
+    "Food","Transport","Shopping","Entertainment",
+    "Health","Education","Bills","Other"
+]
 
 def get_db():
     try:
-        conn = mysql.connector.connect(**DB_CONFIG)
-        return conn
+        return mysql.connector.connect(**DB_CONFIG)
     except Error as e:
-        print(f"DB Error: {e}")
+        print(f"Database connection error: {e}")
         return None
 
 def init_db():
     conn = get_db()
-    if conn:
+    if not conn:
+        return
+    cursor = None
+    try:
         cursor = conn.cursor()
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS expenses (
+            CREATE TABLE IF NOT EXISTS expenses(
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 title VARCHAR(255),
-                amount FLOAT,
+                amount DECIMAL(10,2),
                 category VARCHAR(100),
-                type ENUM('income', 'expense'),
+                type ENUM('income','expense'),
                 date DATE,
                 note TEXT,
                 session_id VARCHAR(100),
@@ -62,190 +65,216 @@ def init_db():
             )
         """)
         conn.commit()
-        conn.close()
         print("Database initialized.")
+    except Error as e:
+        print(f"Init DB Error: {e}")
+    finally:
+        if cursor:
+            cursor.close()
+        conn.close()
 
 @app.before_request
 def assign_session():
-    if 'user_id' not in session:
-        session['user_id'] = str(uuid.uuid4())
+    if "user_id" not in session:
+        session["user_id"] = str(uuid.uuid4())
 
-@app.route('/')
+@app.route("/")
 def index():
-    return render_template('index.html', categories=CATEGORIES)
+    return render_template("index.html", categories=CATEGORIES)
 
-@app.route('/api/transactions', methods=['GET'])
+@app.route("/api/transactions", methods=["GET"])
 def get_transactions():
     conn = get_db()
     if not conn:
         return jsonify([])
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM expenses WHERE session_id = %s ORDER BY date DESC", (session.get('user_id'),))
-    transactions = cursor.fetchall()
-    conn.close()
-    for t in transactions:
-        t['date'] = str(t['date'])
-        t['created_at'] = str(t['created_at'])
-    return jsonify(transactions)
+    cursor = None
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT * FROM expenses WHERE session_id=%s ORDER BY date DESC",
+            (session["user_id"],),
+        )
+        rows = cursor.fetchall()
+        for r in rows:
+            r["date"] = str(r["date"])
+            r["created_at"] = str(r["created_at"])
+        return jsonify(rows)
+    except Error as e:
+        print(e)
+        return jsonify({"error":"Failed to fetch transactions"}),500
+    finally:
+        if cursor:
+            cursor.close()
+        conn.close()
 
-@app.route('/api/transactions', methods=['POST'])
+@app.route("/api/transactions", methods=["POST"])
 def add_transaction():
-    data = request.json
     conn = get_db()
     if not conn:
-        return jsonify({'error': 'DB connection failed'})
-    
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO expenses (title, amount, category, type, date, note, session_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-    """, (
-        data.get('title'),
-        data.get('amount'),
-        data.get('category'),
-        data.get('type'),
-        data.get('date'),
-        data.get('note', ''),
-        session['user_id']
-    ))
-    conn.commit()
-    conn.close()
-    return jsonify({'success': True})
+        return jsonify({"error":"DB connection failed"}),500
+    cursor=None
+    try:
+        data=request.json
+        cursor=conn.cursor()
+        cursor.execute("""
+        INSERT INTO expenses(title,amount,category,type,date,note,session_id)
+        VALUES(%s,%s,%s,%s,%s,%s,%s)
+        """,(
+            data.get("title"),
+            data.get("amount"),
+            data.get("category"),
+            data.get("type"),
+            data.get("date"),
+            data.get("note",""),
+            session["user_id"]
+        ))
+        conn.commit()
+        return jsonify({"success":True})
+    except Error as e:
+        print(e)
+        return jsonify({"error":"Failed to add transaction"}),500
+    finally:
+        if cursor:
+            cursor.close()
+        conn.close()
 
-@app.route('/api/transactions/<int:id>', methods=['DELETE'])
+@app.route("/api/transactions/<int:id>", methods=["DELETE"])
 def delete_transaction(id):
-    conn = get_db()
+    conn=get_db()
     if not conn:
-        return jsonify({'error': 'DB connection failed'})
-    
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM expenses WHERE id = %s AND session_id = %s", (id, session['user_id']))
-    conn.commit()
-    conn.close()
-    return jsonify({'success': True})
+        return jsonify({"error":"DB connection failed"}),500
+    cursor=None
+    try:
+        cursor=conn.cursor()
+        cursor.execute("DELETE FROM expenses WHERE id=%s AND session_id=%s",(id,session["user_id"]))
+        conn.commit()
+        return jsonify({"success":True})
+    except Error as e:
+        print(e)
+        return jsonify({"error":"Delete failed"}),500
+    finally:
+        if cursor:
+            cursor.close()
+        conn.close()
 
-# ============== ADMIN ROUTES ==============
-
-@app.route('/admin', methods=['GET', 'POST'])
+@app.route("/admin",methods=["GET","POST"])
 def admin():
-    if request.method == 'POST':
-        password = request.form.get('password', '')
-        if password == ADMIN_PASSWORD:
-            session['is_admin'] = True
-            return redirect('/admin')
-        else:
-            return render_template('admin_login.html', error='Wrong password')
+    if request.method=="POST":
+        if request.form.get("password","")==ADMIN_PASSWORD:
+            session["is_admin"]=True
+            return redirect("/admin")
+        return render_template("admin_login.html",error="Wrong password")
+    if not session.get("is_admin"):
+        return render_template("admin_login.html",error=None)
+    return render_template("admin.html")
 
-    if not session.get('is_admin'):
-        return render_template('admin_login.html', error=None)
-
-    return render_template('admin.html')
-
-@app.route('/admin/logout')
+@app.route("/admin/logout")
 def admin_logout():
-    session.pop('is_admin', None)
-    return redirect('/')
+    session.pop("is_admin",None)
+    return redirect("/")
 
-@app.route('/api/admin/stats', methods=['GET'])
+@app.route("/api/admin/stats")
 def admin_stats():
-    if not session.get('is_admin'):
-        return jsonify({'error': 'Unauthorized'}), 401
-
-    conn = get_db()
+    if not session.get("is_admin"):
+        return jsonify({"error":"Unauthorized"}),401
+    conn=get_db()
     if not conn:
-        return jsonify({'error': 'DB connection failed'})
+        return jsonify({"error":"DB connection failed"}),500
+    cursor=None
+    try:
+        cursor=conn.cursor(dictionary=True)
+        cursor.execute("SELECT COUNT(*) total_transactions FROM expenses")
+        total_transactions=cursor.fetchone()["total_transactions"]
+        cursor.execute("SELECT COUNT(DISTINCT session_id) total_users FROM expenses")
+        total_users=cursor.fetchone()["total_users"]
+        cursor.execute("SELECT COALESCE(SUM(amount),0) total_income FROM expenses WHERE type='income'")
+        total_income=float(cursor.fetchone()["total_income"])
+        cursor.execute("SELECT COALESCE(SUM(amount),0) total_expense FROM expenses WHERE type='expense'")
+        total_expense=float(cursor.fetchone()["total_expense"])
+        return jsonify({
+            "total_transactions":total_transactions,
+            "total_users":total_users,
+            "total_income":total_income,
+            "total_expense":total_expense
+        })
+    finally:
+        if cursor:
+            cursor.close()
+        conn.close()
 
-    cursor = conn.cursor(dictionary=True)
-
-    cursor.execute("SELECT COUNT(*) as total_transactions FROM expenses")
-    total_transactions = cursor.fetchone()['total_transactions']
-
-    cursor.execute("SELECT COUNT(DISTINCT session_id) as total_users FROM expenses")
-    total_users = cursor.fetchone()['total_users']
-
-    cursor.execute("SELECT SUM(amount) as total_income FROM expenses WHERE type = 'income'")
-    result_inc = cursor.fetchone()
-    total_income = result_inc['total_income'] or 0
-
-    cursor.execute("SELECT SUM(amount) as total_expense FROM expenses WHERE type = 'expense'")
-    result_exp = cursor.fetchone()
-    total_expense = result_exp['total_expense'] or 0
-    cursor.close()
-    conn.close()
-
-    return jsonify({
-        'total_transactions': total_transactions,
-        'total_users': total_users,
-        'total_income': float(total_income),
-        'total_expense': float(total_expense)
-    })
-
-@app.route('/api/admin/transactions', methods=['GET'])
-def admin_get_all_transactions():
-    if not session.get('is_admin'):
-        return jsonify({'error': 'Unauthorized'}), 401
-
-    conn = get_db()
+@app.route("/api/admin/transactions")
+def admin_transactions():
+    if not session.get("is_admin"):
+        return jsonify({"error":"Unauthorized"}),401
+    conn=get_db()
     if not conn:
         return jsonify([])
+    cursor=None
+    try:
+        cursor=conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM expenses ORDER BY created_at DESC")
+        rows=cursor.fetchall()
+        for r in rows:
+            r["date"]=str(r["date"])
+            r["created_at"]=str(r["created_at"])
+        return jsonify(rows)
+    finally:
+        if cursor:
+            cursor.close()
+        conn.close()
 
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM expenses ORDER BY created_at DESC")
-    transactions = cursor.fetchall()
-    conn.close()
-
-    for t in transactions:
-        t['date'] = str(t['date'])
-        t['created_at'] = str(t['created_at'])
-    return jsonify(transactions)
-
-@app.route('/api/admin/transactions/<int:id>', methods=['DELETE'])
+@app.route("/api/admin/transactions/<int:id>",methods=["DELETE"])
 def admin_delete_transaction(id):
-    if not session.get('is_admin'):
-        return jsonify({'error': 'Unauthorized'}), 401
-
-    conn = get_db()
+    if not session.get("is_admin"):
+        return jsonify({"error":"Unauthorized"}),401
+    conn=get_db()
     if not conn:
-        return jsonify({'error': 'DB connection failed'})
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM expenses WHERE id = %s", (id,))
-    conn.commit()
-    conn.close()
-    return jsonify({'success': True})
+        return jsonify({"error":"DB connection failed"}),500
+    cursor=None
+    try:
+        cursor=conn.cursor()
+        cursor.execute("DELETE FROM expenses WHERE id=%s",(id,))
+        conn.commit()
+        return jsonify({"success":True})
+    finally:
+        if cursor:
+            cursor.close()
+        conn.close()
 
-@app.route('/api/summary', methods=['GET'])
+@app.route("/api/summary")
 def get_summary():
-    conn = get_db()
+    conn=get_db()
     if not conn:
         return jsonify({})
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT SUM(amount) as total FROM expenses WHERE type='income' AND session_id = %s", (session.get('user_id'),))
-    income = cursor.fetchone()['total'] or 0
-    cursor.execute("SELECT SUM(amount) as total FROM expenses WHERE type='expense' AND session_id = %s", (session.get('user_id'),))
-    expense = cursor.fetchone()['total'] or 0
-    cursor.execute("""
-        SELECT category, SUM(amount) as total 
-        FROM expenses WHERE type='expense' AND session_id = %s
-        GROUP BY category ORDER BY total DESC
-    """, (session.get('user_id'),))
-    by_category = cursor.fetchall()
-    cursor.execute("""
-        SELECT DATE_FORMAT(date, '%Y-%m') as month, 
-               SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income,
-               SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense
-        FROM expenses WHERE session_id = %s GROUP BY month ORDER BY month
-    """, (session.get('user_id'),))
-    monthly = cursor.fetchall()
-    conn.close()
-    return jsonify({
-        'total_income': income,
-        'total_expense': expense,
-        'balance': income - expense,
-        'by_category': by_category,
-        'monthly': monthly
-    })
-    
+    cursor=None
+    try:
+        cursor=conn.cursor(dictionary=True)
+        uid=session["user_id"]
+        cursor.execute("SELECT COALESCE(SUM(amount),0) total FROM expenses WHERE type='income' AND session_id=%s",(uid,))
+        income=float(cursor.fetchone()["total"])
+        cursor.execute("SELECT COALESCE(SUM(amount),0) total FROM expenses WHERE type='expense' AND session_id=%s",(uid,))
+        expense=float(cursor.fetchone()["total"])
+        cursor.execute("""SELECT category,SUM(amount) total FROM expenses
+        WHERE type='expense' AND session_id=%s GROUP BY category ORDER BY total DESC""",(uid,))
+        by_category=cursor.fetchall()
+        cursor.execute("""SELECT DATE_FORMAT(date,'%Y-%m') month,
+        SUM(CASE WHEN type='income' THEN amount ELSE 0 END) income,
+        SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) expense
+        FROM expenses WHERE session_id=%s GROUP BY month ORDER BY month""",(uid,))
+        monthly=cursor.fetchall()
+        return jsonify({
+            "total_income":income,
+            "total_expense":expense,
+            "balance":income-expense,
+            "by_category":by_category,
+            "monthly":monthly
+        })
+    finally:
+        if cursor:
+            cursor.close()
+        conn.close()
+
 init_db()
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+if __name__=="__main__":
+    app.run(host="0.0.0.0",port=int(os.environ.get("PORT",5000)))
